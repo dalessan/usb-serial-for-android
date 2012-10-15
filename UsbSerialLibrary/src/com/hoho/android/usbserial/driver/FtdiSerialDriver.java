@@ -218,15 +218,44 @@ public class FtdiSerialDriver extends UsbSerialDriver {
         mConnection.close();
     }
 
+    /**
+     * Filters out the two modem status bytes from each received packet
+     * (determined by the {@code mMaxPacketSize} value). The source and
+     * destination arrays may be the same array. The resulting number
+     * of bytes are returned.
+     *
+     * @param src source array
+     * @param dest destination array
+     * @param total total number of bytes in the source array
+     * @return resulting number of bytes
+     */
+    protected int filterModemStatus(byte[] src, byte[] dest, int total) {
+        int sofs = 0;
+        int dofs = 0;
+        sofs = sofs + MODEM_STATUS_HEADER_LENGTH;
+        while (sofs < total) {
+            int len = ((total - sofs) >= (mMaxPacketSize - MODEM_STATUS_HEADER_LENGTH)) ?
+                      (mMaxPacketSize - MODEM_STATUS_HEADER_LENGTH) :
+                      (total - sofs);
+            System.arraycopy(src, sofs, dest, dofs, len);
+            sofs = sofs + len + MODEM_STATUS_HEADER_LENGTH;
+            dofs = dofs + len;
+        }
+
+        //Log.d(TAG, HexDump.dumpHexString(dest, 0, Math.min(32, dofs)));
+        return dofs;
+    }
+
     @Override
     public int read(byte[] dest, int timeoutMillis) throws IOException {
         final UsbEndpoint endpoint = mDevice.getInterface(0).getEndpoint(0);
 
+        final int statusBytes = ((int) Math.ceil(((double) dest.length) / ((double) (mMaxPacketSize - MODEM_STATUS_HEADER_LENGTH)))) * MODEM_STATUS_HEADER_LENGTH;
         if (ENABLE_ASYNC_READS) {
             final int readAmt;
             synchronized (mReadBufferLock) {
                 // mReadBuffer is only used for maximum read size.
-                readAmt = Math.min(dest.length, mReadBuffer.length);
+                readAmt = Math.min(dest.length + statusBytes, mReadBuffer.length);
             }
 
             final UsbRequest request = new UsbRequest();
@@ -242,18 +271,16 @@ public class FtdiSerialDriver extends UsbSerialDriver {
                 throw new IOException("Null response");
             }
 
-            final int payloadBytesRead = buf.position() - MODEM_STATUS_HEADER_LENGTH;
-            if (payloadBytesRead > 0) {
-                Log.d(TAG, HexDump.dumpHexString(dest, 0, Math.min(32, dest.length)));
-                return payloadBytesRead;
-            } else {
-                return 0;
+            if (buf.position() < MODEM_STATUS_HEADER_LENGTH) {
+                throw new IOException("Expected at least " + MODEM_STATUS_HEADER_LENGTH + " bytes");
             }
+
+            return filterModemStatus(dest, dest, Math.min(readAmt, buf.position()));
         } else {
             final int totalBytesRead;
+            final int readAmt = Math.min(dest.length + statusBytes, mReadBuffer.length);
 
             synchronized (mReadBufferLock) {
-                final int readAmt = Math.min(dest.length, mReadBuffer.length);
                 totalBytesRead = mConnection.bulkTransfer(endpoint, mReadBuffer,
                         readAmt, timeoutMillis);
             }
@@ -262,11 +289,7 @@ public class FtdiSerialDriver extends UsbSerialDriver {
                 throw new IOException("Expected at least " + MODEM_STATUS_HEADER_LENGTH + " bytes");
             }
 
-            final int payloadBytesRead = totalBytesRead - MODEM_STATUS_HEADER_LENGTH;
-            if (payloadBytesRead > 0) {
-                System.arraycopy(mReadBuffer, MODEM_STATUS_HEADER_LENGTH, dest, 0, payloadBytesRead);
-            }
-            return payloadBytesRead;
+            return filterModemStatus(mReadBuffer, dest, Math.min(readAmt, totalBytesRead));
         }
     }
 
