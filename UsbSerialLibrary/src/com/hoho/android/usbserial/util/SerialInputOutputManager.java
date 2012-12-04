@@ -170,12 +170,13 @@ public class SerialInputOutputManager implements Runnable {
         // Handle outgoing data.
         byte[] outBuff = null;
         synchronized (mWriteBuffer) {
-            if (mWriteBuffer.position() > 0) {
-                len = mWriteBuffer.position();
+            mWriteBuffer.flip();
+            if (mWriteBuffer.limit() > 0) {
+                len = mWriteBuffer.limit();
                 outBuff = new byte[len];
                 mWriteBuffer.get(outBuff, 0, len);
-                mWriteBuffer.clear();
             }
+            mWriteBuffer.clear();
         }
         if (outBuff != null) {
             if (DEBUG) {
