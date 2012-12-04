@@ -32,8 +32,6 @@ import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbRequest;
 import android.util.Log;
 
-import com.hoho.android.usbserial.util.HexDump;
-
 /**
  * A {@link UsbSerialDriver} implementation for a variety of FTDI devices
  * <p>
@@ -286,7 +284,7 @@ public class FtdiSerialDriver extends UsbSerialDriver {
             }
 
             if (totalBytesRead < MODEM_STATUS_HEADER_LENGTH) {
-                throw new IOException("Expected at least " + MODEM_STATUS_HEADER_LENGTH + " bytes");
+                throw new IOException("Expected at least " + MODEM_STATUS_HEADER_LENGTH + " bytes, received " + totalBytesRead);
             }
 
             return filterModemStatus(mReadBuffer, dest, Math.min(readAmt, totalBytesRead));
