@@ -45,6 +45,9 @@ public final class UsbId {
 
     public static final int VENDOR_VAN_OOIJEN_TECH = 0x16c0;
     public static final int VAN_OOIJEN_TECH_TEENSYDUINO_SERIAL = 0x0483;
+    
+    public static final int VENDOR_EPFL = 0x0617;
+    public static final int EPFL_CC2531 = 0x000b;
 
     private UsbId() {
         throw new IllegalAccessError("Non-instantiable class.");
